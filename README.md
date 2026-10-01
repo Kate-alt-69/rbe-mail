@@ -96,7 +96,13 @@ Both build helpers resolve the latest successful `CI` run on RBE `main`, clone/u
 compile only `backend`. The freshly-built backend then installs/updates the verified
 project-local Rust SDK before RPX validates and packages `mail`.
 
-Windows:
+For compiler authority, the helpers prefer a pinned RBE-managed
+`.rbe/rpx-toolchain.json` when it exists. During ordinary local package authoring, if
+that managed map is absent but `cargo` is available on `PATH`, the helpers visibly and
+explicitly opt into RPX's `--allow-host-toolchain` escape hatch. CI/release workflows
+can use the managed-only option to forbid that local fallback.
+
+Windows (Windows PowerShell 5.1 or PowerShell 7+):
 
 ```powershell
 .\build.ps1
@@ -121,7 +127,8 @@ Useful overrides:
 .\build.ps1 -NoRbeRefresh
 .\build.ps1 -NoSdkUpdate
 .\build.ps1 -CheckOnly
-.\build.ps1 -AllowHostToolchain
+.\build.ps1 -AllowHostToolchain      # explicitly force local host Cargo
+.\build.ps1 -ManagedToolchainOnly    # require pinned RBE compiler authority
 ```
 
 ```bash
@@ -129,7 +136,8 @@ Useful overrides:
 ./build.sh --no-rbe-refresh
 ./build.sh --no-sdk-update
 ./build.sh --check-only
-./build.sh --allow-host-toolchain
+./build.sh --allow-host-toolchain      # explicitly force local host Cargo
+./build.sh --managed-toolchain-only    # require pinned RBE compiler authority
 ```
 
 `GITHUB_TOKEN` is optional and only raises the GitHub API rate limit. No token is
