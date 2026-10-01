@@ -11,6 +11,7 @@ NO_RBE_REFRESH=false
 NO_SDK_UPDATE=false
 CHECK_ONLY=false
 ALLOW_HOST_TOOLCHAIN=false
+MANAGED_TOOLCHAIN_ONLY=false
 CLEAN=false
 
 mail_die() {
@@ -33,14 +34,16 @@ Default flow:
   2. Clone/update Kate-alt-69/RBE under .cache/rbe/upstream.
   3. Build ONLY the RBE backend from that green commit.
   4. Use that freshly-built backend to install/update the project-local Rust SDK.
-  5. Run rpx check, compile, and compile.package for mail.
+  5. Prefer the RBE-managed RPX compiler map; if absent, use host Cargo only for local authoring.
+  6. Run rpx check, compile, and compile.package for mail.
 
 Options:
   --rbe-sha <sha>          Use an explicit RBE commit instead of latest green CI.
   --no-rbe-refresh         Reuse the cached RBE checkout/commit without GitHub CI lookup.
   --no-sdk-update          Do not reinstall/update the project-local SDK.
   --check-only             Run RPX validation only.
-  --allow-host-toolchain   Allow RPX host Rust tools when no managed toolchain exists.
+  --allow-host-toolchain   Explicitly force RPX host Rust tools for local authoring.
+  --managed-toolchain-only Require .rbe/rpx-toolchain.json; never fall back to host Cargo.
   --clean                  Remove package build cache before building.
   --sdk-version <version>  Install sdk.<version> instead of sdk.latest.
   -h, --help               Show this help.
@@ -66,6 +69,7 @@ while [ "$#" -gt 0 ]; do
     --no-sdk-update) NO_SDK_UPDATE=true ;;
     --check-only) CHECK_ONLY=true ;;
     --allow-host-toolchain) ALLOW_HOST_TOOLCHAIN=true ;;
+    --managed-toolchain-only) MANAGED_TOOLCHAIN_ONLY=true ;;
     --clean) CLEAN=true ;;
     --sdk-version)
       shift
@@ -78,6 +82,10 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
+
+if $ALLOW_HOST_TOOLCHAIN && $MANAGED_TOOLCHAIN_ONLY; then
+  mail_die MAIL5001 "--allow-host-toolchain and --managed-toolchain-only cannot be used together" "Choose explicit host authoring or strict managed-toolchain mode, not both."
+fi
 
 command -v git >/dev/null 2>&1 || mail_die MAIL5001 "git is required to fetch/build RBE" "Install Git and ensure git is on PATH."
 command -v python3 >/dev/null 2>&1 || mail_die MAIL5001 "python3 is required to resolve the latest green RBE CI run" "Install Python 3 and ensure python3 is on PATH."
@@ -196,9 +204,22 @@ if $CLEAN; then
   rm -rf -- "$REPO_ROOT/.cache/rbe/build"
 fi
 
+MANAGED_TOOLCHAIN_MAP="$REPO_ROOT/.rbe/rpx-toolchain.json"
 RPX_ARGS=()
+
 if $ALLOW_HOST_TOOLCHAIN; then
+  command -v cargo >/dev/null 2>&1 || mail_die MAIL5005 "explicit host-toolchain authoring was requested, but cargo was not found on PATH" "Install Rust/Cargo or remove --allow-host-toolchain and configure .rbe/rpx-toolchain.json."
+  echo "WARNING: RPX local authoring: explicitly using host Cargo at $(command -v cargo)." >&2
   RPX_ARGS+=(--allow-host-toolchain)
+elif [ -f "$MANAGED_TOOLCHAIN_MAP" ]; then
+  echo "RPX compiler authority: managed toolchain ($MANAGED_TOOLCHAIN_MAP)"
+elif $MANAGED_TOOLCHAIN_ONLY; then
+  mail_die MAIL5005 "no RBE-managed RPX toolchain is configured for this project" "Hydrate/write .rbe/rpx-toolchain.json with pinned compiler SHA-256 identities, or rerun without --managed-toolchain-only for local authoring fallback."
+elif command -v cargo >/dev/null 2>&1; then
+  echo "WARNING: No RBE-managed RPX toolchain is configured; local package authoring will use host Cargo at $(command -v cargo) via RPX --allow-host-toolchain. Use --managed-toolchain-only to forbid this fallback." >&2
+  RPX_ARGS+=(--allow-host-toolchain)
+else
+  mail_die MAIL5005 "no RBE-managed RPX toolchain is configured and cargo was not found on PATH" "Install Rust/Cargo for local authoring, or hydrate .rbe/rpx-toolchain.json with a pinned managed toolchain."
 fi
 
 cd "$REPO_ROOT"
@@ -215,7 +236,7 @@ fi
 
 echo
 echo "==> rpx compile"
-"$RPX" compile . "${RPX_ARGS[@]}" || mail_die MAIL5005 "rpx compile failed for package mail" "Fix the Rust/RBE package compiler error above; rerun with --allow-host-toolchain only for deliberate local development when no managed toolchain exists."
+"$RPX" compile . "${RPX_ARGS[@]}" || mail_die MAIL5005 "rpx compile failed for package mail" "Fix the first Rust/RBE compiler diagnostic above. The helper already prefers managed compiler authority and uses host Cargo only for local authoring fallback."
 
 echo
 echo "==> rpx compile.package"
