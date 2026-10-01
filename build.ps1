@@ -5,6 +5,7 @@ param(
     [switch]$NoSdkUpdate,
     [switch]$CheckOnly,
     [switch]$AllowHostToolchain,
+    [switch]$ManagedToolchainOnly,
     [switch]$Clean,
     [string]$SdkVersion = $(if ($env:RBE_SDK_VERSION) { $env:RBE_SDK_VERSION } else { 'latest' })
 )
@@ -20,6 +21,9 @@ $RbeApi = if ($env:RBE_API) { $env:RBE_API.TrimEnd('/') } else { 'https://api.gi
 $RbeSource = Join-Path $RepoRoot '.cache\rbe\upstream'
 $ManifestPath = Join-Path $RepoRoot 'package.rbe.toml'
 
+if ($AllowHostToolchain -and $ManagedToolchainOnly) {
+    Throw-MailBuildError 'MAIL5001' '-AllowHostToolchain and -ManagedToolchainOnly cannot be used together.' 'Choose explicit host authoring or strict managed-toolchain mode, not both.'
+}
 if (-not (Test-Path $ManifestPath)) {
     Throw-MailBuildError 'MAIL5001' "package.rbe.toml is missing from $RepoRoot" 'Run build.ps1 from the rbe-mail repository and restore package.rbe.toml.'
 }
@@ -154,9 +158,29 @@ if ($Clean) {
     }
 }
 
+$ManagedToolchainMap = Join-Path $RepoRoot '.rbe\rpx-toolchain.json'
+$HostCargo = Get-Command cargo -ErrorAction SilentlyContinue
 $RpxArgs = @()
+
 if ($AllowHostToolchain) {
+    if (-not $HostCargo) {
+        Throw-MailBuildError 'MAIL5005' 'Explicit host-toolchain authoring was requested, but cargo was not found on PATH.' 'Install Rust/Cargo or remove -AllowHostToolchain and configure a managed .rbe\rpx-toolchain.json.'
+    }
+    Write-Warning "RPX local authoring: explicitly using host Cargo at $($HostCargo.Source)."
     $RpxArgs += '--allow-host-toolchain'
+}
+elif (Test-Path -LiteralPath $ManagedToolchainMap -PathType Leaf) {
+    Write-Host "RPX compiler authority: managed toolchain ($ManagedToolchainMap)" -ForegroundColor DarkGray
+}
+elif ($ManagedToolchainOnly) {
+    Throw-MailBuildError 'MAIL5005' 'No RBE-managed RPX toolchain is configured for this project.' 'Hydrate/write .rbe\rpx-toolchain.json with pinned compiler SHA-256 identities, or rerun without -ManagedToolchainOnly for local authoring fallback.'
+}
+elif ($HostCargo) {
+    Write-Warning "No RBE-managed RPX toolchain is configured; local package authoring will use host Cargo at $($HostCargo.Source) via RPX --allow-host-toolchain. Use -ManagedToolchainOnly to forbid this fallback."
+    $RpxArgs += '--allow-host-toolchain'
+}
+else {
+    Throw-MailBuildError 'MAIL5005' 'No RBE-managed RPX toolchain is configured and cargo was not found on PATH.' 'Install Rust/Cargo for local authoring, or hydrate .rbe\rpx-toolchain.json with a pinned managed toolchain.'
 }
 
 Push-Location $RepoRoot
@@ -175,12 +199,12 @@ try {
     Write-Host ''
     Write-Host '==> rpx compile' -ForegroundColor Cyan
     & $Rpx compile . @RpxArgs
-    if ($LASTEXITCODE -ne 0) { Throw-MailBuildError 'MAIL5005' "rpx compile failed with exit code $LASTEXITCODE." 'Fix the Rust/RBE compiler error above; use -AllowHostToolchain only for deliberate local development when no managed toolchain exists.' }
+    if ($LASTEXITCODE -ne 0) { Throw-MailBuildError 'MAIL5005' "rpx compile failed with exit code $LASTEXITCODE." 'Fix the first Rust/RBE compiler diagnostic above. The build helper already selects managed compiler authority when available and host Cargo only for local authoring fallback.' }
 
     Write-Host ''
     Write-Host '==> rpx compile.package' -ForegroundColor Cyan
     & $Rpx compile.package . @RpxArgs
-    if ($LASTEXITCODE -ne 0) { Throw-MailBuildError 'MAIL5005' "rpx compile.package failed with exit code $LASTEXITCODE." 'Fix the compiler/archive error before publishing mail.' }
+    if ($LASTEXITCODE -ne 0) { Throw-MailBuildError 'MAIL5005' "rpx compile.package failed with exit code $LASTEXITCODE." 'Fix the compiler/archive error above before publishing mail.' }
 
     Write-Host ''
     Write-Host 'mail build complete.' -ForegroundColor Green
