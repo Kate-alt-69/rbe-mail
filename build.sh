@@ -13,6 +13,14 @@ CHECK_ONLY=false
 ALLOW_HOST_TOOLCHAIN=false
 CLEAN=false
 
+mail_die() {
+  local code="$1"; shift
+  local message="$1"; shift || true
+  echo "$code: $message" >&2
+  if [ "$#" -gt 0 ]; then echo "Fix: $*" >&2; fi
+  exit 1
+}
+
 usage() {
   cat <<'EOF'
 mail build helper
@@ -71,9 +79,9 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-command -v git >/dev/null 2>&1 || { echo "ERROR: git is required." >&2; exit 1; }
-command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 is required." >&2; exit 1; }
-[ -f "$REPO_ROOT/package.rbe.toml" ] || { echo "ERROR: package.rbe.toml is missing." >&2; exit 1; }
+command -v git >/dev/null 2>&1 || mail_die MAIL5001 "git is required to fetch/build RBE" "Install Git and ensure git is on PATH."
+command -v python3 >/dev/null 2>&1 || mail_die MAIL5001 "python3 is required to resolve the latest green RBE CI run" "Install Python 3 and ensure python3 is on PATH."
+[ -f "$REPO_ROOT/package.rbe.toml" ] || mail_die MAIL5001 "package.rbe.toml is missing from the repository root" "Run build.sh from the rbe-mail repository and restore package.rbe.toml."
 
 github_json() {
   local url="$1"
@@ -95,7 +103,9 @@ PY
 
 resolve_latest_green() {
   local payload
-  payload="$(github_json "$RBE_API/actions/runs?branch=main&status=success&event=push&per_page=20")"
+  if ! payload="$(github_json "$RBE_API/actions/runs?branch=main&status=success&event=push&per_page=20" 2>&1)"; then
+    mail_die MAIL5002 "failed to query GitHub Actions for a green RBE main build: $payload" "Check GitHub connectivity/API rate limits or set GITHUB_TOKEN; alternatively pass --rbe-sha <known-green-sha>."
+  fi
   python3 -c '
 import json, sys
 data=json.load(sys.stdin)
@@ -107,7 +117,7 @@ for run in data.get("workflow_runs", []):
         and run.get("conclusion") == "success"):
         print(run["head_sha"])
         raise SystemExit(0)
-raise SystemExit("no successful RBE main CI run was found")
+raise SystemExit("no successful RBE main CI run was found in the last 20 successful push runs")
 ' <<<"$payload"
 }
 
@@ -115,31 +125,32 @@ mkdir -p "$(dirname "$RBE_SOURCE")"
 
 if [ ! -d "$RBE_SOURCE/.git" ]; then
   echo "Cloning RBE from GitHub..."
-  git clone "$RBE_REPOSITORY" "$RBE_SOURCE"
+  git clone "$RBE_REPOSITORY" "$RBE_SOURCE" || mail_die MAIL5003 "failed to clone RBE from $RBE_REPOSITORY" "Check Git/GitHub access and delete a partial .cache/rbe/upstream before retrying."
 fi
 
 if ! $NO_RBE_REFRESH; then
   echo "Fetching RBE main..."
-  git -C "$RBE_SOURCE" fetch --prune origin main
+  git -C "$RBE_SOURCE" fetch --prune origin main || mail_die MAIL5003 "failed to fetch RBE origin/main" "Check GitHub connectivity and the cached checkout under .cache/rbe/upstream."
 
   if [ -z "$RBE_SHA" ]; then
     echo "Resolving latest green RBE main CI..."
-    RBE_SHA="$(resolve_latest_green)"
+    if ! RBE_SHA="$(resolve_latest_green 2>&1)"; then
+      mail_die MAIL5002 "could not resolve a green RBE main commit: $RBE_SHA" "Check GitHub Actions/API access or pass --rbe-sha <known-green-sha>."
+    fi
   fi
 elif [ -z "$RBE_SHA" ]; then
   RBE_SHA="$(git -C "$RBE_SOURCE" rev-parse HEAD)"
 fi
 
 [[ "$RBE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] || {
-  echo "ERROR: invalid RBE commit SHA: $RBE_SHA" >&2
-  exit 1
+  mail_die MAIL5003 "invalid RBE commit SHA: $RBE_SHA" "Use a full 40-character commit SHA or let the helper resolve the latest green CI commit."
 }
 
 git -C "$RBE_SOURCE" cat-file -e "$RBE_SHA^{commit}" 2>/dev/null || {
-  git -C "$RBE_SOURCE" fetch origin "$RBE_SHA"
+  git -C "$RBE_SOURCE" fetch origin "$RBE_SHA" || mail_die MAIL5003 "could not fetch RBE commit $RBE_SHA" "Confirm the SHA exists in Kate-alt-69/RBE and that GitHub is reachable."
 }
-git -C "$RBE_SOURCE" checkout --detach "$RBE_SHA"
-git -C "$RBE_SOURCE" reset --hard "$RBE_SHA"
+git -C "$RBE_SOURCE" checkout --detach "$RBE_SHA" || mail_die MAIL5003 "failed to check out RBE commit $RBE_SHA" "Delete/refresh .cache/rbe/upstream and retry."
+git -C "$RBE_SOURCE" reset --hard "$RBE_SHA" || mail_die MAIL5003 "failed to reset cached RBE checkout to $RBE_SHA" "Delete .cache/rbe/upstream and retry."
 
 echo "Selected RBE green commit: $RBE_SHA"
 
@@ -150,7 +161,7 @@ case "$(uname -s)" in
     (
       cd "$RBE_SOURCE"
       ./build.sh --only-backend --build-linux --arch-x64
-    )
+    ) || mail_die MAIL5003 "RBE backend build failed at $RBE_SHA" "Read the RBE compiler output above; install missing build prerequisites or select another green SHA if the local toolchain is incompatible."
     RBE_BACKEND="$RBE_SOURCE/dist/$RBE_TARGET/backend"
     ;;
   Darwin*)
@@ -164,8 +175,7 @@ case "$(uname -s)" in
 esac
 
 [ -x "$RBE_BACKEND" ] || {
-  echo "ERROR: freshly-built RBE backend not found: $RBE_BACKEND" >&2
-  exit 1
+  mail_die MAIL5003 "freshly-built RBE backend was not found at $RBE_BACKEND" "Inspect the selected RBE build output/target and report the selected SHA if dist layout changed."
 }
 
 SDK_BACKEND="$REPO_ROOT/.rbe/bin/backend"
@@ -173,14 +183,14 @@ RPX="$REPO_ROOT/.rbe/bin/rpx"
 
 if ! $NO_SDK_UPDATE; then
   echo "Installing/updating verified RBE Rust SDK: sdk.$SDK_VERSION"
-  "$RBE_BACKEND" install "sdk.$SDK_VERSION" -path "$REPO_ROOT" -language rust
+  "$RBE_BACKEND" install "sdk.$SDK_VERSION" -path "$REPO_ROOT" -language rust || mail_die MAIL5004 "RBE SDK install/update failed" "Run '$RBE_BACKEND install help' if CLI syntax changed; otherwise inspect the installer error above and retry."
 fi
 
-[ -x "$SDK_BACKEND" ] || { echo "ERROR: project-local SDK backend is missing: $SDK_BACKEND" >&2; exit 1; }
-[ -x "$RPX" ] || { echo "ERROR: project-local RPX is missing: $RPX" >&2; exit 1; }
+[ -x "$SDK_BACKEND" ] || mail_die MAIL5004 "project-local SDK backend is missing: $SDK_BACKEND" "Re-run without --no-sdk-update so the verified Rust SDK is installed."
+[ -x "$RPX" ] || mail_die MAIL5004 "project-local RPX is missing: $RPX" "Reinstall/repair the project-local RBE SDK."
 
 echo "RBE SDK status:"
-"$SDK_BACKEND" sdk status -path "$REPO_ROOT"
+"$SDK_BACKEND" sdk status -path "$REPO_ROOT" || mail_die MAIL5004 "RBE SDK status validation failed" "Repair/reinstall the project-local SDK and verify its managed Rust toolchain."
 
 if $CLEAN; then
   rm -rf -- "$REPO_ROOT/.cache/rbe/build"
@@ -195,7 +205,7 @@ cd "$REPO_ROOT"
 
 echo
 echo "==> rpx check"
-"$RPX" check .
+"$RPX" check . || mail_die MAIL5005 "rpx check failed for package mail" "Fix the package/component error printed above; use the MAIL/RPX/RBE code in that output for the next diagnostic."
 
 if $CHECK_ONLY; then
   echo
@@ -205,11 +215,11 @@ fi
 
 echo
 echo "==> rpx compile"
-"$RPX" compile . "${RPX_ARGS[@]}"
+"$RPX" compile . "${RPX_ARGS[@]}" || mail_die MAIL5005 "rpx compile failed for package mail" "Fix the Rust/RBE package compiler error above; rerun with --allow-host-toolchain only for deliberate local development when no managed toolchain exists."
 
 echo
 echo "==> rpx compile.package"
-"$RPX" compile.package . "${RPX_ARGS[@]}"
+"$RPX" compile.package . "${RPX_ARGS[@]}" || mail_die MAIL5005 "rpx compile.package failed for package mail" "Fix the compiler/archive error above before publishing the package."
 
 echo
 echo "mail build complete."

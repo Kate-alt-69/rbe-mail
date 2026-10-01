@@ -20,15 +20,21 @@ When RBE exposes package listener authority, `mail.service` will bind the config
 
 ## Domain verification
 
-Self-hosted mode will generate a DNS ownership challenge such as:
+Self-hosted mode uses a DNS ownership challenge such as:
 
 ```text
 _rbe-mail.example.com TXT rbe-mail-verification=<random challenge>
 ```
 
-That proves DNS control. DKIM is a separate key pair; the private key stays under RBE-managed crypto/storage and the public key is published under a selector such as `rbe1._domainkey.example.com`.
+That proves DNS control. The standalone `self-hosted` component deliberately does **not** derive this token from a timestamp. Until RBE exposes package crypto/random authority, `setup_records()` fails with `MAIL2007`; generate 32 cryptographically random bytes externally and call `setup_records_with_token(..., <64-hex-token>)`.
+
+DKIM is a separate key pair; the private key must stay under RBE-managed crypto/storage once that package authority is available, and the public key is published under a selector such as `rbe1._domainkey.example.com`.
 
 MX, SPF, DKIM, DMARC, forward DNS, reverse DNS/PTR, TLS, inbound port availability, and outbound port availability are separate readiness checks.
+
+## Current RBE package-host status
+
+At the time this source was last audited, Backend grants/dispatches package `log`, `net:http`, and `net:dns`. `net:tcp`, TLS/STARTTLS, inbound listen/accept, package storage/crypto, and package-owned Service activation are still treated as unavailable even though some names/helpers exist in the SDK. SDK convenience is not host authority.
 
 ## Fail-closed behavior
 

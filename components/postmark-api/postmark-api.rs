@@ -1,5 +1,45 @@
 use rbe_sdk::{HostBridge, RbeSdk};
 
+fn diagnostic_detail(body: &str) -> String {
+    let mut clean = body
+        .chars()
+        .map(|ch| if ch.is_control() && !matches!(ch, '\n' | '\r' | '\t') { '�' } else { ch })
+        .collect::<String>();
+    if clean.len() > 1024 {
+        let mut boundary = 1024;
+        while !clean.is_char_boundary(boundary) { boundary -= 1; }
+        clean.truncate(boundary);
+        clean.push_str("…");
+    }
+    clean
+}
+
+fn map_host_http_error(message: &str) -> String {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("exceeds") || lower.contains("too many headers") || lower.contains("maximum") || lower.contains("capability envelope") {
+        format!("MAIL4008: RBE net:http rejected a request/response broker limit: {message}; reduce message/header/body size")
+    } else {
+        format!("MAIL4007: RBE net:http failed before a provider response was accepted: {message}; check RBE network/DNS/TLS reachability")
+    }
+}
+
+fn provider_http_error(status: u16, body: &str) -> String {
+    let (code, reason, fix) = match status {
+        401 | 403 => ("MAIL4001", "provider authentication/authorization was rejected", "verify/rotate the credential and sender permissions"),
+        402 => ("MAIL4003", "provider quota or billing limit was reached", "fix provider billing/quota before retrying"),
+        408 | 504 => ("MAIL4006", "provider request timed out", "delivery can be ambiguous; check provider/idempotency state before resending"),
+        429 => ("MAIL4002", "provider rate limit was exceeded", "respect Retry-After/backoff and reduce concurrency"),
+        500..=599 => ("MAIL4005", "provider is temporarily unavailable", "retry with backoff or deliberately switch transport"),
+        _ => ("MAIL4004", "provider rejected the request", "inspect provider detail and correct request/sender/recipient fields"),
+    };
+    let detail = diagnostic_detail(body);
+    if detail.trim().is_empty() {
+        format!("{code}: HTTP {status}: {reason}; fix: {fix}")
+    } else {
+        format!("{code}: HTTP {status}: {reason}; detail: {detail}; fix: {fix}")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApiResponse {
     pub status: u16,
@@ -78,7 +118,7 @@ fn field_string(input: &str, field: &str) -> Option<String> {
 fn validate_path(path: &str) -> Result<(), String> {
     if !path.starts_with('/') || path.starts_with("//") || path.contains("://") ||
        path.contains('\\') || path.split('/').any(|part| part == "..") {
-        return Err("MAIL1005: invalid provider-local API path".into());
+        return Err("MAIL1005: invalid provider-local API path; fix: pass a provider-local path beginning with one / and no scheme/traversal".into());
     }
     Ok(())
 }
@@ -90,12 +130,14 @@ fn http(
     headers: &[(&str, String)],
     body: Option<&str>,
 ) -> Result<ApiResponse, String> {
-    if sdk.host().granted("net:http") == Some(false) {
-        return Err("MAIL2001: RBE net:http capability is not granted".into());
+    match sdk.host().granted("net:http") {
+        Some(true) => {}
+        Some(false) => return Err("MAIL2001: RBE net:http capability is not granted; approve net:http for package mail and reactivate the package session".into()),
+        None => return Err("MAIL2006: RBE Library Host session is unavailable; execute this component through an accepted RBE package session".into()),
     }
     let method = method.to_ascii_uppercase();
     if !matches!(method.as_str(), "GET" | "POST" | "PUT" | "PATCH" | "DELETE") {
-        return Err("MAIL1006: unsupported provider HTTP method".into());
+        return Err("MAIL1006: unsupported provider HTTP method; fix: use GET/POST/PUT/PATCH/DELETE supported by the provider endpoint".into());
     }
 
     let mut h = String::from("{");
@@ -117,13 +159,14 @@ fn http(
     );
 
     let reply = sdk.net().http().call("request", envelope.as_bytes())
-        .map_err(|e| format!("MAIL4001: RBE net:http failed: {e}"))?;
+        .map_err(|e| map_host_http_error(&e.to_string()))?;
     let encoded = std::str::from_utf8(&reply.payload)
-        .map_err(|_| "MAIL8001: RBE net:http returned non-UTF8 metadata".to_string())?;
+        .map_err(|_| "MAIL8001: RBE net:http returned non-UTF8 metadata; fix: preserve the response context and report the RBE/package versions".to_string())?;
     let status = field_u16(encoded, "status")
-        .ok_or_else(|| "MAIL8001: response is missing status".to_string())?;
+        .ok_or_else(|| "MAIL8001: RBE net:http response is missing status; fix: preserve the response context and report the RBE/package versions".to_string())?;
     let ok = field_bool(encoded, "ok").unwrap_or((200..300).contains(&status));
     let body = field_string(encoded, "body").unwrap_or_default();
+    if !ok { return Err(provider_http_error(status, &body)); }
     Ok(ApiResponse { status, ok, body })
 }
 
@@ -136,8 +179,8 @@ pub struct PostmarkApi<'a> {
 impl<'a> PostmarkApi<'a> {
     pub fn new(host: &'a dyn HostBridge, credential: impl Into<String>) -> Result<Self, String> {
         let credential = credential.into();
-        if credential.trim().is_empty() {
-            return Err("MAIL1007: provider credential cannot be empty".into());
+        if credential.trim().is_empty() || credential.chars().any(char::is_control) {
+            return Err("MAIL1007: provider credential cannot be empty or contain control characters".into());
         }
         Ok(Self {
             sdk: RbeSdk::new(host),

@@ -1,249 +1,63 @@
 {
   "schemaVersion": 1,
-  "description": "Machine-readable Error Code Book for the RBE mail package.",
+  "description": "Machine-readable Error Code Book index for the RBE mail package. See diagnostics.json for remediation metadata.",
   "prefixes": {
     "MAIL": "RBE mail package"
   },
   "entries": [
-    {
-      "code": "MAIL1001",
-      "status": "emitted",
-      "title": "Invalid email address",
-      "doc": "mail.md#mail1001"
-    },
-    {
-      "code": "MAIL1002",
-      "status": "emitted",
-      "title": "Invalid message",
-      "doc": "mail.md#mail1002"
-    },
-    {
-      "code": "MAIL1003",
-      "status": "emitted",
-      "title": "Invalid mail domain",
-      "doc": "mail.md#mail1003"
-    },
-    {
-      "code": "MAIL1004",
-      "status": "emitted",
-      "title": "Invalid transport configuration",
-      "doc": "mail.md#mail1004"
-    },
-    {
-      "code": "MAIL1005",
-      "status": "emitted",
-      "title": "Invalid provider API path",
-      "doc": "mail.md#mail1005"
-    },
-    {
-      "code": "MAIL1006",
-      "status": "emitted",
-      "title": "Unsupported provider HTTP method",
-      "doc": "mail.md#mail1006"
-    },
-    {
-      "code": "MAIL1007",
-      "status": "emitted",
-      "title": "Provider credential missing",
-      "doc": "mail.md#mail1007"
-    },
-    {
-      "code": "MAIL1009",
-      "status": "emitted",
-      "title": "Invalid Mailgun domain",
-      "doc": "mail.md#mail1009"
-    },
-    {
-      "code": "MAIL1010",
-      "status": "emitted",
-      "title": "Invalid SendPulse domain",
-      "doc": "mail.md#mail1010"
-    },
-    {
-      "code": "MAIL1011",
-      "status": "emitted",
-      "title": "Invalid AWS region",
-      "doc": "mail.md#mail1011"
-    },
-    {
-      "code": "MAIL1012",
-      "status": "emitted",
-      "title": "Invalid SendGrid legacy template id",
-      "doc": "mail.md#mail1012"
-    },
-    {
-      "code": "MAIL1013",
-      "status": "emitted",
-      "title": "Invalid SMTP endpoint",
-      "doc": "mail.md#mail1013"
-    },
-    {
-      "code": "MAIL1014",
-      "status": "emitted",
-      "title": "SMTP credential missing",
-      "doc": "mail.md#mail1014"
-    },
-    {
-      "code": "MAIL1015",
-      "status": "emitted",
-      "title": "Invalid DNS domain",
-      "doc": "mail.md#mail1015"
-    },
-    {
-      "code": "MAIL1016",
-      "status": "emitted",
-      "title": "Header injection rejected",
-      "doc": "mail.md#mail1016"
-    },
-    {
-      "code": "MAIL1017",
-      "status": "emitted",
-      "title": "Invalid template variable",
-      "doc": "mail.md#mail1017"
-    },
-    {
-      "code": "MAIL1018",
-      "status": "emitted",
-      "title": "Incomplete self-hosted setup",
-      "doc": "mail.md#mail1018"
-    },
-    {
-      "code": "MAIL2001",
-      "status": "emitted",
-      "title": "Required RBE capability missing",
-      "doc": "mail.md#mail2001"
-    },
-    {
-      "code": "MAIL2002",
-      "status": "emitted",
-      "title": "Self-hosted server prerequisite missing",
-      "doc": "mail.md#mail2002"
-    },
-    {
-      "code": "MAIL2003",
-      "status": "emitted",
-      "title": "TCP capability missing",
-      "doc": "mail.md#mail2003"
-    },
-    {
-      "code": "MAIL2004",
-      "status": "emitted",
-      "title": "TLS capability missing",
-      "doc": "mail.md#mail2004"
-    },
-    {
-      "code": "MAIL2005",
-      "status": "emitted",
-      "title": "DNS capability missing",
-      "doc": "mail.md#mail2005"
-    },
-    {
-      "code": "MAIL4001",
-      "status": "emitted",
-      "title": "Provider authentication rejected",
-      "doc": "mail.md#mail4001"
-    },
-    {
-      "code": "MAIL4002",
-      "status": "emitted",
-      "title": "Provider rate limit exceeded",
-      "doc": "mail.md#mail4002"
-    },
-    {
-      "code": "MAIL4003",
-      "status": "emitted",
-      "title": "Provider quota or billing limit reached",
-      "doc": "mail.md#mail4003"
-    },
-    {
-      "code": "MAIL4004",
-      "status": "emitted",
-      "title": "Provider rejected the mail request",
-      "doc": "mail.md#mail4004"
-    },
-    {
-      "code": "MAIL4005",
-      "status": "emitted",
-      "title": "Provider temporarily unavailable",
-      "doc": "mail.md#mail4005"
-    },
-    {
-      "code": "MAIL4006",
-      "status": "emitted",
-      "title": "Provider request timed out",
-      "doc": "mail.md#mail4006"
-    },
-    {
-      "code": "MAIL4007",
-      "status": "emitted",
-      "title": "RBE mail network operation failed",
-      "doc": "mail.md#mail4007"
-    },
-    {
-      "code": "MAIL4008",
-      "status": "reserved",
-      "title": "RBE request or response limit exceeded",
-      "doc": "mail.md#mail4008"
-    },
-    {
-      "code": "MAIL4009",
-      "status": "reserved",
-      "title": "Recipient rejected",
-      "doc": "mail.md#mail4009"
-    },
-    {
-      "code": "MAIL4010",
-      "status": "emitted",
-      "title": "SMTP TLS/STARTTLS unavailable",
-      "doc": "mail.md#mail4010"
-    },
-    {
-      "code": "MAIL4011",
-      "status": "emitted",
-      "title": "Inbound SMTP listener unavailable",
-      "doc": "mail.md#mail4011"
-    },
-    {
-      "code": "MAIL4012",
-      "status": "emitted",
-      "title": "Package mail.service unavailable",
-      "doc": "mail.md#mail4012"
-    },
-    {
-      "code": "MAIL4013",
-      "status": "emitted",
-      "title": "DNS lookup failed",
-      "doc": "mail.md#mail4013"
-    },
-    {
-      "code": "MAIL4014",
-      "status": "emitted",
-      "title": "No MX records",
-      "doc": "mail.md#mail4014"
-    },
-    {
-      "code": "MAIL8001",
-      "status": "emitted",
-      "title": "Malformed external or host response",
-      "doc": "mail.md#mail8001"
-    },
-    {
-      "code": "MAIL8002",
-      "status": "emitted",
-      "title": "Malformed DNS response",
-      "doc": "mail.md#mail8002"
-    },
-    {
-      "code": "MAIL9001",
-      "status": "emitted",
-      "title": "Mail package invariant violated",
-      "doc": "mail.md#mail9001"
-    },
-    {
-      "code": "MAIL9002",
-      "status": "emitted",
-      "title": "Invalid system clock",
-      "doc": "mail.md#mail9002"
-    }
+    {"code":"MAIL1001","status":"emitted","title":"Invalid email address","doc":"mail.md#mail1001"},
+    {"code":"MAIL1002","status":"emitted","title":"Invalid message","doc":"mail.md#mail1002"},
+    {"code":"MAIL1003","status":"emitted","title":"Invalid mail domain","doc":"mail.md#mail1003"},
+    {"code":"MAIL1004","status":"emitted","title":"Invalid transport configuration","doc":"mail.md#mail1004"},
+    {"code":"MAIL1005","status":"emitted","title":"Invalid provider API path","doc":"mail.md#mail1005"},
+    {"code":"MAIL1006","status":"emitted","title":"Unsupported provider HTTP method","doc":"mail.md#mail1006"},
+    {"code":"MAIL1007","status":"emitted","title":"Provider credential missing","doc":"mail.md#mail1007"},
+    {"code":"MAIL1008","status":"reserved","title":"Invalid provider resource identifier","doc":"mail.md#mail1008"},
+    {"code":"MAIL1009","status":"emitted","title":"Invalid Mailgun domain","doc":"mail.md#mail1009"},
+    {"code":"MAIL1010","status":"emitted","title":"Invalid SendPulse domain","doc":"mail.md#mail1010"},
+    {"code":"MAIL1011","status":"emitted","title":"Invalid AWS region","doc":"mail.md#mail1011"},
+    {"code":"MAIL1012","status":"emitted","title":"Invalid SendGrid legacy template id","doc":"mail.md#mail1012"},
+    {"code":"MAIL1013","status":"emitted","title":"Invalid SMTP endpoint","doc":"mail.md#mail1013"},
+    {"code":"MAIL1014","status":"emitted","title":"SMTP credential missing","doc":"mail.md#mail1014"},
+    {"code":"MAIL1015","status":"emitted","title":"Invalid DNS domain","doc":"mail.md#mail1015"},
+    {"code":"MAIL1016","status":"emitted","title":"Header injection rejected","doc":"mail.md#mail1016"},
+    {"code":"MAIL1017","status":"emitted","title":"Invalid template variable","doc":"mail.md#mail1017"},
+    {"code":"MAIL1018","status":"emitted","title":"Incomplete self-hosted setup","doc":"mail.md#mail1018"},
+    {"code":"MAIL1019","status":"emitted","title":"Invalid ownership verification token","doc":"mail.md#mail1019"},
+    {"code":"MAIL1020","status":"emitted","title":"Invalid self-hosted public IPv4 address","doc":"mail.md#mail1020"},
+    {"code":"MAIL1021","status":"emitted","title":"Invalid Message-ID or References chain","doc":"mail.md#mail1021"},
+    {"code":"MAIL1022","status":"emitted","title":"Invalid unsubscribe target","doc":"mail.md#mail1022"},
+    {"code":"MAIL1023","status":"emitted","title":"Invalid OTP content","doc":"mail.md#mail1023"},
+    {"code":"MAIL2001","status":"emitted","title":"Required RBE capability missing","doc":"mail.md#mail2001"},
+    {"code":"MAIL2002","status":"emitted","title":"Self-hosted server prerequisite missing","doc":"mail.md#mail2002"},
+    {"code":"MAIL2003","status":"emitted","title":"TCP capability missing","doc":"mail.md#mail2003"},
+    {"code":"MAIL2004","status":"emitted","title":"TLS capability missing","doc":"mail.md#mail2004"},
+    {"code":"MAIL2005","status":"emitted","title":"DNS capability missing","doc":"mail.md#mail2005"},
+    {"code":"MAIL2006","status":"emitted","title":"RBE Library Host session unavailable","doc":"mail.md#mail2006"},
+    {"code":"MAIL2007","status":"emitted","title":"Secure verification-token generation unavailable","doc":"mail.md#mail2007"},
+    {"code":"MAIL4001","status":"emitted","title":"Provider authentication rejected","doc":"mail.md#mail4001"},
+    {"code":"MAIL4002","status":"emitted","title":"Provider rate limit exceeded","doc":"mail.md#mail4002"},
+    {"code":"MAIL4003","status":"emitted","title":"Provider quota or billing limit reached","doc":"mail.md#mail4003"},
+    {"code":"MAIL4004","status":"emitted","title":"Provider rejected the mail request","doc":"mail.md#mail4004"},
+    {"code":"MAIL4005","status":"emitted","title":"Provider temporarily unavailable","doc":"mail.md#mail4005"},
+    {"code":"MAIL4006","status":"emitted","title":"Provider request timed out","doc":"mail.md#mail4006"},
+    {"code":"MAIL4007","status":"emitted","title":"RBE mail network operation failed","doc":"mail.md#mail4007"},
+    {"code":"MAIL4008","status":"emitted","title":"RBE request or response limit exceeded","doc":"mail.md#mail4008"},
+    {"code":"MAIL4009","status":"reserved","title":"Recipient rejected","doc":"mail.md#mail4009"},
+    {"code":"MAIL4010","status":"emitted","title":"SMTP TLS/STARTTLS unavailable","doc":"mail.md#mail4010"},
+    {"code":"MAIL4011","status":"emitted","title":"Inbound SMTP listener unavailable","doc":"mail.md#mail4011"},
+    {"code":"MAIL4012","status":"emitted","title":"Package mail.service unavailable","doc":"mail.md#mail4012"},
+    {"code":"MAIL4013","status":"emitted","title":"DNS lookup failed","doc":"mail.md#mail4013"},
+    {"code":"MAIL4014","status":"emitted","title":"No mail exchanger or address fallback","doc":"mail.md#mail4014"},
+    {"code":"MAIL4015","status":"emitted","title":"Recipient domain publishes null MX","doc":"mail.md#mail4015"},
+    {"code":"MAIL5001","status":"emitted","title":"Build prerequisite missing","doc":"mail.md#mail5001"},
+    {"code":"MAIL5002","status":"emitted","title":"Latest green RBE commit could not be resolved","doc":"mail.md#mail5002"},
+    {"code":"MAIL5003","status":"emitted","title":"RBE source checkout or backend build failed","doc":"mail.md#mail5003"},
+    {"code":"MAIL5004","status":"emitted","title":"RBE SDK bootstrap or status failed","doc":"mail.md#mail5004"},
+    {"code":"MAIL5005","status":"emitted","title":"RPX validation or package compilation failed","doc":"mail.md#mail5005"},
+    {"code":"MAIL8001","status":"emitted","title":"Malformed external or host response","doc":"mail.md#mail8001"},
+    {"code":"MAIL8002","status":"emitted","title":"Malformed DNS response","doc":"mail.md#mail8002"},
+    {"code":"MAIL9001","status":"emitted","title":"Mail package invariant violated","doc":"mail.md#mail9001"},
+    {"code":"MAIL9002","status":"emitted","title":"Invalid system clock","doc":"mail.md#mail9002"}
   ]
 }

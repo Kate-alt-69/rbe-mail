@@ -11,6 +11,8 @@ The public goal is one small API regardless of whether delivery uses a third-par
 - Brevo
 - Postmark
 - Mailgun
+- SendPulse
+- AWS SES v2 (+ explicit legacy SES component)
 - self-hosted RBE SMTP groundwork
 
 All provider traffic uses RBE HostBridge capabilities. The package does not read process environment directly, open raw sockets behind RBE, or print directly to stdout.
@@ -59,17 +61,19 @@ Every package error has a stable `MAILxxxx` diagnostic code. The package-local E
 - `MAIL1xxx` — invalid mail input/configuration
 - `MAIL2xxx` — RBE capability/authority/configuration problems
 - `MAIL4xxx` — live provider/SMTP/runtime failures
+- `MAIL5xxx` — build/SDK/RPX bootstrap failures
 - `MAIL8xxx` — malformed or incompatible external responses
 - `MAIL9xxx` — package invariant failures / likely `mail` bugs
 
 Machine catalog: `doc/error-codes/catalog.json`
+Actionable EPER metadata: `doc/error-codes/diagnostics.json`
 Long-form reference: `doc/error-codes/mail.md`
 
 Current RBE `main` embeds its core error catalog at build time. The package catalog is intentionally packaged in the same machine-readable shape so EPER can ingest it once package-local Error Book discovery is wired into RBE. Until then the emitted `MAILxxxx` code and this local book remain authoritative.
 
 ## Self-hosted SMTP
 
-Current RBE already provides public MX lookup and bounded outbound TCP. `mail` checks for the rest of the server prerequisites before enabling server mode and fails closed rather than silently falling back to insecure plaintext SMTP.
+Current RBE package-host authority provides `log`, `net:http`, and `net:dns`. The Rust SDK also names additional network/storage/crypto primitives, but those names are not authority: current Backend does not yet grant/dispatch the TCP/TLS/listener/storage/crypto/package-service pieces needed by a full SMTP server. `mail` therefore fails closed instead of bypassing RBE or silently falling back to plaintext SMTP.
 
 Expected authority surface:
 
@@ -95,7 +99,7 @@ project-local Rust SDK before RPX validates and packages `mail`.
 Windows:
 
 ```powershell
-.uild.ps1
+.\build.ps1
 ```
 
 Linux/WSL:
@@ -113,11 +117,11 @@ backend install sdk.latest -path <repo> -language rust
 Useful overrides:
 
 ```powershell
-.uild.ps1 -RbeSha <40-char-sha>
-.uild.ps1 -NoRbeRefresh
-.uild.ps1 -NoSdkUpdate
-.uild.ps1 -CheckOnly
-.uild.ps1 -AllowHostToolchain
+.\build.ps1 -RbeSha <40-char-sha>
+.\build.ps1 -NoRbeRefresh
+.\build.ps1 -NoSdkUpdate
+.\build.ps1 -CheckOnly
+.\build.ps1 -AllowHostToolchain
 ```
 
 ```bash
