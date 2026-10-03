@@ -1,4 +1,4 @@
-use rbe_sdk::{HostBridge, RbeSdk};
+use rbe_sdk::{HostBridge, HostCall, RbeSdk};
 use std::net::Ipv4Addr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,11 +78,45 @@ pub fn setup_records_with_token(
     ])
 }
 
-/// Convenience entry retained for DX, but deliberately fail-closed until RBE exposes
-/// package crypto/random authority. A timestamp-derived ownership token is not secure.
+/// Generate a cryptographically secure ownership token through the trusted RBE
+/// crypto broker and immediately build the self-hosted DNS plan.
+pub fn setup_records_secure(
+    host: &dyn HostBridge,
+    domain: &str,
+    mail_host: &str,
+    public_ip: &str,
+) -> Result<Vec<DnsRecord>, String> {
+    let sdk = RbeSdk::new(host);
+    let Some(session) = sdk.host().session() else {
+        return Err("MAIL2006: RBE Library Host session is unavailable; secure self-hosted setup requires an accepted host session".into());
+    };
+    if !session.granted("crypto") {
+        return Err("MAIL2001: RBE crypto capability is not granted; approve crypto before generating a self-hosted ownership token".into());
+    }
+    let reply = host
+        .call(HostCall::new(
+            "crypto",
+            "crypto",
+            "random",
+            br#"{"bytes":32}"#,
+        ))
+        .map_err(|error| format!("MAIL4007: RBE secure ownership-token generation failed: {error}"))?;
+    let text = std::str::from_utf8(&reply.payload)
+        .map_err(|_| "MAIL8001: RBE crypto random response was not UTF-8 JSON".to_string())?;
+    let token = string_field(text, "data_hex")?;
+    if !validate_token(&token) {
+        return Err("MAIL8001: RBE crypto random response did not contain a 256-bit hexadecimal token".into());
+    }
+    setup_records_with_token(domain, mail_host, public_ip, &token)
+}
+
+/// Legacy convenience entry retained for source compatibility with the initial
+/// package draft. It remains fail-closed because it has no HostBridge from which
+/// to request cryptographically secure randomness. New code should call
+/// `setup_records_secure(host, ...)` or `setup_records_with_token(...)`.
 pub fn setup_records(domain: &str, mail_host: &str, public_ip: &str) -> Result<Vec<DnsRecord>, String> {
     let _ = (domain, mail_host, public_ip);
-    Err("MAIL2007: secure verification-token generation is unavailable to package workers on this RBE build; generate a random 32-byte token and call setup_records_with_token(..., <64-hex-token>)".into())
+    Err("MAIL2007: secure verification-token generation requires an RBE HostBridge; call setup_records_secure(host, ...) or setup_records_with_token(...)".into())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,6 +145,45 @@ pub fn capabilities(host: &dyn HostBridge) -> Capabilities {
     }
 }
 
+fn string_field(input: &str, field: &str) -> Result<String, String> {
+    let needle = format!("\"{field}\"");
+    let start = input
+        .find(&needle)
+        .ok_or_else(|| format!("MAIL8001: RBE response is missing field {field:?}"))?
+        + needle.len();
+    let tail = &input[start..];
+    let colon = tail
+        .find(':')
+        .ok_or_else(|| format!("MAIL8001: RBE response field {field:?} has no value"))?;
+    let mut chars = tail[colon + 1..].trim_start().chars();
+    if chars.next() != Some('"') {
+        return Err(format!("MAIL8001: RBE response field {field:?} is not a string"));
+    }
+    let mut out = String::new();
+    let mut escaped = false;
+    for ch in chars {
+        if escaped {
+            match ch {
+                '"' => out.push('"'),
+                '\\' => out.push('\\'),
+                '/' => out.push('/'),
+                'n' => out.push('\n'),
+                'r' => out.push('\r'),
+                't' => out.push('\t'),
+                other => out.push(other),
+            }
+            escaped = false;
+        } else {
+            match ch {
+                '\\' => escaped = true,
+                '"' => return Ok(out),
+                other => out.push(other),
+            }
+        }
+    }
+    Err(format!("MAIL8001: RBE response field {field:?} contains an unterminated string"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,5 +203,11 @@ mod tests {
             &"ab".repeat(32),
         ).unwrap();
         assert!(records.iter().any(|record| record.name == "_rbe-mail.example.com"));
+    }
+
+    #[test]
+    fn parses_secure_random_host_response() {
+        let text = format!(r#"{{"data_hex":"{}"}}"#, "ab".repeat(32));
+        assert_eq!(string_field(&text, "data_hex").unwrap(), "ab".repeat(32));
     }
 }
