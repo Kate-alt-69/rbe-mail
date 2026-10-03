@@ -1,9 +1,7 @@
 {
   "schemaVersion": 1,
   "description": "Machine-readable Error Code Book index for the RBE mail package. See diagnostics.json for remediation metadata.",
-  "prefixes": {
-    "MAIL": "RBE mail package"
-  },
+  "prefixes": {"MAIL": "RBE mail package"},
   "entries": [
     {"code":"MAIL1001","status":"emitted","title":"Invalid email address","doc":"mail.md#mail1001"},
     {"code":"MAIL1002","status":"emitted","title":"Invalid message","doc":"mail.md#mail1002"},
@@ -43,13 +41,17 @@
     {"code":"MAIL4006","status":"emitted","title":"Provider request timed out","doc":"mail.md#mail4006"},
     {"code":"MAIL4007","status":"emitted","title":"RBE mail network operation failed","doc":"mail.md#mail4007"},
     {"code":"MAIL4008","status":"emitted","title":"RBE request or response limit exceeded","doc":"mail.md#mail4008"},
-    {"code":"MAIL4009","status":"reserved","title":"Recipient rejected","doc":"mail.md#mail4009"},
+    {"code":"MAIL4009","status":"emitted","title":"Recipient rejected","doc":"mail.md#mail4009"},
     {"code":"MAIL4010","status":"emitted","title":"SMTP TLS/STARTTLS unavailable","doc":"mail.md#mail4010"},
     {"code":"MAIL4011","status":"emitted","title":"Inbound SMTP listener unavailable","doc":"mail.md#mail4011"},
     {"code":"MAIL4012","status":"emitted","title":"Package mail.service unavailable","doc":"mail.md#mail4012"},
     {"code":"MAIL4013","status":"emitted","title":"DNS lookup failed","doc":"mail.md#mail4013"},
     {"code":"MAIL4014","status":"emitted","title":"No mail exchanger or address fallback","doc":"mail.md#mail4014"},
     {"code":"MAIL4015","status":"emitted","title":"Recipient domain publishes null MX","doc":"mail.md#mail4015"},
+    {"code":"MAIL4016","status":"emitted","title":"Temporary SMTP failure","doc":"mail.md#mail4016"},
+    {"code":"MAIL4017","status":"emitted","title":"Permanent SMTP rejection","doc":"mail.md#mail4017"},
+    {"code":"MAIL4018","status":"emitted","title":"Partial self-hosted delivery","doc":"mail.md#mail4018"},
+    {"code":"MAIL4019","status":"emitted","title":"SMTPUTF8 unsupported","doc":"mail.md#mail4019"},
     {"code":"MAIL5001","status":"emitted","title":"Build prerequisite missing","doc":"mail.md#mail5001"},
     {"code":"MAIL5002","status":"emitted","title":"Latest green RBE commit could not be resolved","doc":"mail.md#mail5002"},
     {"code":"MAIL5003","status":"emitted","title":"RBE source checkout or backend build failed","doc":"mail.md#mail5003"},
@@ -57,6 +59,7 @@
     {"code":"MAIL5005","status":"emitted","title":"RPX validation or package compilation failed","doc":"mail.md#mail5005"},
     {"code":"MAIL8001","status":"emitted","title":"Malformed external or host response","doc":"mail.md#mail8001"},
     {"code":"MAIL8002","status":"emitted","title":"Malformed DNS response","doc":"mail.md#mail8002"},
+    {"code":"MAIL8003","status":"emitted","title":"Malformed SMTP or TLS broker response","doc":"mail.md#mail8003"},
     {"code":"MAIL9001","status":"emitted","title":"Mail package invariant violated","doc":"mail.md#mail9001"},
     {"code":"MAIL9002","status":"emitted","title":"Invalid system clock","doc":"mail.md#mail9002"}
   ]
