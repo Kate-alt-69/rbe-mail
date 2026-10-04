@@ -98,9 +98,9 @@ impl<'a> MailStore<'a> {
                 "MAIL1002: raw message must contain 1..={MAX_MESSAGE_BYTES} bytes"
             ));
         }
-        if metadata_json.len() > MAX_METADATA_BYTES || !metadata_json.is_char_boundary(metadata_json.len()) {
+        if metadata_json.len() > MAX_METADATA_BYTES {
             return Err(format!(
-                "MAIL1002: message metadata must be UTF-8 and at most {MAX_METADATA_BYTES} bytes"
+                "MAIL1002: message metadata must be at most {MAX_METADATA_BYTES} UTF-8 bytes"
             ));
         }
 
@@ -126,22 +126,16 @@ impl<'a> MailStore<'a> {
             chunks: digests.len(),
             chunk_sha256: digests,
         };
-        let manifest_bytes = encode_manifest(&manifest).into_bytes();
-        self.put_object(&manifest_key, &manifest_bytes)?;
+        self.put_object(&manifest_key, encode_manifest(&manifest).as_bytes())?;
 
         if let Err(error) = self.put_object(&index_key(folder, id), id.as_bytes()) {
             return Err(format!(
-                "MAIL4022: message {id:?} is committed but its {} index pointer could not be written: {error}; call repair_index() before retrying delivery",
+                "MAIL4022: message {id:?} is committed but its {} index pointer could not be written: {error}; call repair_index() instead of storing or delivering the message again",
                 folder.as_str()
             ));
         }
 
-        Ok(StoredMailSummary {
-            id: id.to_string(),
-            folder,
-            bytes: raw.len(),
-            chunks: manifest.chunks,
-        })
+        Ok(summary_from_manifest(&manifest))
     }
 
     pub fn get(&self, id: &str) -> Result<Option<StoredMail>, String> {
@@ -149,19 +143,7 @@ impl<'a> MailStore<'a> {
         let Some(manifest_bytes) = self.get_object(&manifest_key(id))? else {
             return Ok(None);
         };
-        let manifest_text = std::str::from_utf8(&manifest_bytes)
-            .map_err(|_| "MAIL4021: stored mail manifest is not UTF-8".to_string())?;
-        let manifest = parse_manifest(manifest_text)?;
-        if manifest.id != id {
-            return Err("MAIL4021: stored mail manifest id does not match requested id".into());
-        }
-        if manifest.chunks == 0
-            || manifest.chunks != manifest.chunk_sha256.len()
-            || manifest.bytes == 0
-            || manifest.bytes > MAX_MESSAGE_BYTES
-        {
-            return Err("MAIL4021: stored mail manifest has impossible size/chunk metadata".into());
-        }
+        let manifest = decode_manifest(id, &manifest_bytes)?;
 
         let mut raw = Vec::with_capacity(manifest.bytes);
         for index in 0..manifest.chunks {
@@ -210,16 +192,19 @@ impl<'a> MailStore<'a> {
                 "MAIL1002: mail-store list limit must be in 1..={MAX_LIST_RESULTS}"
             ));
         }
-        let prefix = format!("{}/", folder.as_str());
+
+        // RBE storage prefixes are safe storage keys, not directory syntax; a
+        // trailing slash would create an empty path component and be rejected.
+        let prefix = folder.as_str();
         let payload = format!(
             "{{\"prefix\":{},\"limit\":{limit}}}",
-            json_string(&prefix)
+            json_string(prefix)
         );
         let reply = self.call_storage("list", payload.as_bytes(), "MAIL4020")?;
         let text = reply_text(&reply, "storage list")?;
+        let expected_prefix = format!("{prefix}/");
         let mut ids = Vec::new();
         for key in string_array_field(text, "keys")? {
-            let expected_prefix = format!("{}/", folder.as_str());
             let Some(rest) = key.strip_prefix(&expected_prefix) else {
                 return Err("MAIL4021: storage list escaped requested mail folder prefix".into());
             };
@@ -234,24 +219,23 @@ impl<'a> MailStore<'a> {
         Ok(ids)
     }
 
+    /// Repair only a folder index pointer for an already committed *and fully
+    /// verified* message. A manifest by itself is not enough authority to make
+    /// a message visible again.
     pub fn repair_index(&self, id: &str) -> Result<StoredMailSummary, String> {
         validate_id(id)?;
+        let stored = self
+            .get(id)?
+            .ok_or_else(|| format!("MAIL4024: message {id:?} has no committed manifest"))?;
         let manifest_bytes = self
             .get_object(&manifest_key(id))?
-            .ok_or_else(|| format!("MAIL4024: message {id:?} has no committed manifest"))?;
-        let manifest_text = std::str::from_utf8(&manifest_bytes)
-            .map_err(|_| "MAIL4021: stored mail manifest is not UTF-8".to_string())?;
-        let manifest = parse_manifest(manifest_text)?;
-        if manifest.id != id {
-            return Err("MAIL4021: stored mail manifest id does not match requested id".into());
+            .ok_or_else(|| format!("MAIL4024: message {id:?} lost its commit manifest during index repair"))?;
+        let manifest = decode_manifest(id, &manifest_bytes)?;
+        if stored.folder != manifest.folder || stored.raw.len() != manifest.bytes {
+            return Err("MAIL9001: mail-store verified state changed during index repair".into());
         }
         self.put_object(&index_key(manifest.folder, id), id.as_bytes())?;
-        Ok(StoredMailSummary {
-            id: id.to_string(),
-            folder: manifest.folder,
-            bytes: manifest.bytes,
-            chunks: manifest.chunks,
-        })
+        Ok(summary_from_manifest(&manifest))
     }
 
     /// Make the message invisible first, then remove committed state and chunks.
@@ -261,11 +245,12 @@ impl<'a> MailStore<'a> {
         let Some(manifest_bytes) = self.get_object(&manifest_key(id))? else {
             return Ok(false);
         };
-        let manifest_text = std::str::from_utf8(&manifest_bytes)
-            .map_err(|_| "MAIL4021: stored mail manifest is not UTF-8".to_string())?;
-        let manifest = parse_manifest(manifest_text)?;
+        let manifest = decode_manifest(id, &manifest_bytes)?;
 
-        let _ = self.delete_object(&index_key(manifest.folder, id));
+        // The folder pointer is visibility. If removing it fails, abort before
+        // deleting the commit record so list/get cannot disagree about a
+        // dangling visible id.
+        self.delete_object(&index_key(manifest.folder, id))?;
         self.delete_object(&manifest_key(id))?;
 
         let mut cleanup_error = None;
@@ -302,8 +287,7 @@ impl<'a> MailStore<'a> {
         if !bool_field(text, "found")? {
             return Ok(None);
         }
-        let data_hex = string_field(text, "data_hex")?;
-        Ok(Some(hex_decode(&data_hex)?))
+        Ok(Some(hex_decode(&string_field(text, "data_hex")?)?))
     }
 
     fn exists(&self, key: &str) -> Result<bool, String> {
@@ -351,6 +335,32 @@ impl<'a> MailStore<'a> {
             ))
             .map_err(|error| format!("{code}: RBE storage {operation} failed: {error}"))
     }
+}
+
+fn summary_from_manifest(manifest: &Manifest) -> StoredMailSummary {
+    StoredMailSummary {
+        id: manifest.id.clone(),
+        folder: manifest.folder,
+        bytes: manifest.bytes,
+        chunks: manifest.chunks,
+    }
+}
+
+fn decode_manifest(expected_id: &str, bytes: &[u8]) -> Result<Manifest, String> {
+    let text = std::str::from_utf8(bytes)
+        .map_err(|_| "MAIL4021: stored mail manifest is not UTF-8".to_string())?;
+    let manifest = parse_manifest(text)?;
+    if manifest.id != expected_id {
+        return Err("MAIL4021: stored mail manifest id does not match requested id".into());
+    }
+    if manifest.chunks == 0
+        || manifest.chunks != manifest.chunk_sha256.len()
+        || manifest.bytes == 0
+        || manifest.bytes > MAX_MESSAGE_BYTES
+    {
+        return Err("MAIL4021: stored mail manifest has impossible size/chunk metadata".into());
+    }
+    Ok(manifest)
 }
 
 fn manifest_key(id: &str) -> String {
@@ -509,7 +519,9 @@ fn usize_field(input: &str, field: &str) -> Result<usize, String> {
 fn string_array_field(input: &str, field: &str) -> Result<Vec<String>, String> {
     let tail = field_tail(input, field)?;
     let Some(open) = tail.find('[') else {
-        return Err(format!("MAIL8001: RBE response field {field:?} is not an array"));
+        return Err(format!(
+            "MAIL8001: RBE response field {field:?} is not an array"
+        ));
     };
     let mut chars = tail[open + 1..].chars().peekable();
     let mut values = Vec::new();
@@ -642,5 +654,17 @@ mod tests {
         assert!(validate_id("../secret").is_err());
         assert!(validate_id("a/b").is_err());
         assert!(validate_id("").is_err());
+    }
+
+    #[test]
+    fn folder_prefix_is_a_valid_rbe_storage_key() {
+        for folder in [
+            MailFolder::Inbox,
+            MailFolder::Sent,
+            MailFolder::Queue,
+            MailFolder::Failed,
+        ] {
+            assert!(!folder.as_str().ends_with('/'));
+        }
     }
 }
