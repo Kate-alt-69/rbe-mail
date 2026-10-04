@@ -12,7 +12,7 @@ RBE exposes every directory under `components/` as an independent package import
 
 ## Unified
 
-- `mail` — normalized send API across Resend, SendGrid, Brevo, Postmark, Mailgun, SendPulse and AWS SES, plus self-hosted readiness.
+- `mail` — normalized send API across Resend, SendGrid, Brevo, Postmark, Mailgun, SendPulse and AWS SES, plus self-hosted readiness/outbound SMTP.
 
 ## Provider-native APIs
 
@@ -44,7 +44,15 @@ Legacy means **still accepted/documented by the provider**, not “an endpoint t
 - `sendpulse-smtp`
 - `ses-smtp`
 
-Provider SMTP components supply provider-correct endpoint/credential profiles. Secure transmission remains fail-closed until RBE grants package TLS/STARTTLS authority.
+Provider SMTP components supply provider-correct endpoint/credential profiles. Secure transmission stays fail-closed: self-hosted outbound delivery requires RBE `net:tcp` + `net:tls` and never downgrades after STARTTLS failure.
+
+## Self-hosted server primitives
+
+- `smtp-server` — inbound RBE-owned listener/connection transport through `net:tcp-listen`, including bounded accept/read/write, inbound STARTTLS, ownership-token generation and Ed25519 helpers. It never opens ambient/raw host sockets.
+- `mail-store` — durable package-scoped message persistence through RBE `storage` + `crypto`. Raw RFC5322 messages are chunked, SHA-256 pinned, committed by a manifest written last, then exposed through inbox/sent/queue/failed index pointers. `repair_index()` only re-exposes a message after complete chunk verification.
+- `self-hosted` — DNS setup/readiness helpers and capability checks for full server mode.
+
+`mail-store` treats `messages/<id>/manifest.json` as the commit record. Folder `.ref` entries are indexes only; a partial crash before the manifest is never considered a valid message.
 
 ## Utilities
 
@@ -54,7 +62,6 @@ Provider SMTP components supply provider-correct endpoint/credential profiles. S
 - `webhook`
 - `templates`
 - `errors`
-- `self-hosted`
 - `otp`
 - `transactional`
 - `marketing`
