@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "prefix": "MAIL",
+  "scope": "durable-mail-storage",
+  "description": "Machine-readable remediation guidance for mail-store. Never capture raw message bodies, recipient content, credentials, DKIM private material, or stored chunk bytes in diagnostics.",
+  "entries": [
+    {
+      "code": "MAIL4020",
+      "whatFailed": "RBE durable package storage is unavailable or a storage operation failed",
+      "fix": "Approve the storage capability, reactivate the exact installed mail package, and inspect the lower-level RBE storage diagnostic. Do not bypass RBE with direct filesystem access.",
+      "retry": "conditional"
+    },
+    {
+      "code": "MAIL4021",
+      "whatFailed": "Committed mail storage failed integrity or manifest validation",
+      "fix": "Stop using the stored message. Preserve only sanitized ids/hashes for diagnostics, repair or restore the package-storage object set from an authoritative copy, then verify every chunk SHA-256 before making the message visible again.",
+      "retry": "never-until-repaired"
+    },
+    {
+      "code": "MAIL4022",
+      "whatFailed": "Message committed successfully but its folder index pointer was not written",
+      "fix": "Do not store or deliver the message again. Call mail-store repair_index(id) to recreate the folder pointer from the committed manifest.",
+      "retry": "repair-index-only"
+    },
+    {
+      "code": "MAIL4023",
+      "whatFailed": "An immutable mail storage id already exists",
+      "fix": "Load the existing committed message if this is an idempotent retry, otherwise generate a new unique storage/delivery id. Never overwrite an existing committed id.",
+      "retry": "never-with-same-new-message"
+    },
+    {
+      "code": "MAIL4024",
+      "whatFailed": "A committed message is missing a required chunk, metadata object, or commit manifest",
+      "fix": "Treat the store as incomplete/corrupt and quarantine the message id. Restore from the original SMTP/provider source or another authoritative copy; do not infer missing bytes.",
+      "retry": "never-until-recovered"
+    },
+    {
+      "code": "MAIL4025",
+      "whatFailed": "Message was made invisible/uncommitted but orphan cleanup was incomplete",
+      "fix": "The message is already logically deleted. Run bounded orphan cleanup/GC later; do not recreate the manifest or folder pointer merely to delete leftover chunks.",
+      "retry": "cleanup-later"
+    }
+  ]
+}
