@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Machine-readable Error Code Book index for the RBE mail package. See diagnostics.json for remediation metadata.",
+  "description": "Machine-readable Error Code Book index for the RBE mail package. See diagnostics.json and scoped diagnostic shards for remediation metadata.",
   "prefixes": {"MAIL": "RBE mail package"},
   "entries": [
     {"code":"MAIL1001","status":"emitted","title":"Invalid email address","doc":"mail.md#mail1001"},
@@ -52,6 +52,12 @@
     {"code":"MAIL4017","status":"emitted","title":"Permanent SMTP rejection","doc":"mail.md#mail4017"},
     {"code":"MAIL4018","status":"emitted","title":"Partial self-hosted delivery","doc":"mail.md#mail4018"},
     {"code":"MAIL4019","status":"emitted","title":"SMTPUTF8 unsupported","doc":"mail.md#mail4019"},
+    {"code":"MAIL4020","status":"emitted","title":"Durable mail storage unavailable","doc":"storage.md#mail4020"},
+    {"code":"MAIL4021","status":"emitted","title":"Stored mail integrity failure","doc":"storage.md#mail4021"},
+    {"code":"MAIL4022","status":"emitted","title":"Committed message index write failed","doc":"storage.md#mail4022"},
+    {"code":"MAIL4023","status":"emitted","title":"Duplicate immutable mail storage id","doc":"storage.md#mail4023"},
+    {"code":"MAIL4024","status":"emitted","title":"Committed mail object missing","doc":"storage.md#mail4024"},
+    {"code":"MAIL4025","status":"emitted","title":"Mail orphan cleanup incomplete","doc":"storage.md#mail4025"},
     {"code":"MAIL5001","status":"emitted","title":"Build prerequisite missing","doc":"mail.md#mail5001"},
     {"code":"MAIL5002","status":"emitted","title":"Latest green RBE commit could not be resolved","doc":"mail.md#mail5002"},
     {"code":"MAIL5003","status":"emitted","title":"RBE source checkout or backend build failed","doc":"mail.md#mail5003"},
